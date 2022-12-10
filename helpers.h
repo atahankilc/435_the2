@@ -16,7 +16,7 @@
 
 #define BUFF_SIZE 1025
 #define PACKET_DATA_SIZE 10
-#define WINDOW_WIDTH 10
+#define WINDOW_WIDTH 20
 #define SLEEP_MSEC 5000
 
 typedef struct Payload {
@@ -82,7 +82,7 @@ public:
     }
 } TODO;
 
-void packetmsg(int state, int *packet_number, const char* msg, TODO *todo);
+void packetmsg(int *packet_number, const char* msg, TODO *todo);
 int statecheck(int state, char *msg);
 void statusupdate(int state, Payload *payload, int index);
 void statusexit(const char* from, Payload *payload);

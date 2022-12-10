@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-void packetmsg(int state, int *packet_number, const char* msg, TODO *todo) {
+void packetmsg(int *packet_number, const char* msg, TODO *todo) {
     bool last_packet = false;
     int packet_count = 0;
     Payload payload;

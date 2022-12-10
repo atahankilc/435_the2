@@ -11,6 +11,9 @@ std::condition_variable timeout_condition;
 bool timeout_flag = false;
 bool timeout_first_start = true;
 
+char *msg_send;
+char *msg_receive;
+
 void initiate ();
 void talker ();
 void sender ();
@@ -28,7 +31,7 @@ int main (int argc,char **argv) {
     memset(&netstr.servaddr, 0, sizeof(netstr.servaddr));
     netstr.servaddr.sin_family = AF_INET;
     netstr.servaddr.sin_port = htons(atoi(argv[2]));
-    inet_pton(AF_INET, argv[1], &(netstr.servaddr.sin_addr));
+    netstr.servaddr.sin_addr.s_addr = inet_addr(argv[1]);
 
     std::thread thread_timeout (timeout);
     std::thread thread_sender (sender);
@@ -96,29 +99,30 @@ void timeout () {
 
 void talker() {
     fprintf(stderr, "--------TALKER--START--------\n");
-    char *msg_send;
     int msg_len;
     int packet_number = 1;
 
     msg_send = (char*) malloc(BUFF_SIZE * sizeof(char));
 
-    while(state != S_EXIT) {
+    while (state != S_EXIT) {
         getline(&msg_send, reinterpret_cast<size_t *>(&msg_len), stdin);
         state = statecheck(state, msg_send);
 
-        if(state != S_EXIT) {
-            packetmsg(state, &packet_number, msg_send, &outgoing);
+        if (state != S_EXIT) {
+            packetmsg(&packet_number, msg_send, &outgoing);
         } else {
-            Payload payload;
-            payload.type = 'E';
-            payload.packet_number = -1;
-            outgoing.push(payload);
-            statusexit("talker", &payload);
+            //Payload payload;
+            //payload.type = 'E';
+            //payload.packet_number = 0;
+            //outgoing.push(payload);
+            //statusexit("talker", &payload);
         }
     }
 
     free(msg_send);
+    free(msg_receive);
     fprintf(stderr, "--------TALKER--EXIT---------\n");
+    exit(0);
 }
 
 void sender() {
@@ -153,7 +157,7 @@ void receiver () {
     fprintf(stderr, "-------RECEIVER--START-------\n");
 
     int msg_len;
-    int outgoing_index = -2;
+    int available_window = outgoing.getwindowendindex();
     int incoming_index = 1;
 
     Payload payload, payload_ack;
@@ -176,22 +180,22 @@ void receiver () {
                     incoming_index++;
                 }
             case 'A':
-                if (!waiting.empty() && payload.packet_number == waiting.top().packet_number) {
+                if (!waiting.empty() && payload.packet_number > waiting.top().packet_number) {
                     {
                         std::lock_guard<std::mutex> lock(timeout_mutex);
                         timeout_flag = true;
                         timeout_condition.notify_one();
                     }
-                    outgoing_index = outgoing.incrementwindowendindex();
+                    available_window = outgoing.incrementwindowendindex();
                     waiting.pop();
                 }
-                statusupdate(state, &payload, outgoing_index);
+                statusupdate(state, &payload, available_window);
                 break;
             case 'E':
-                sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                       (const struct sockaddr *) &netstr.servaddr, sizeof(netstr.servaddr));
-                state = S_EXIT;
-                statusexit("listener", &payload);
+                //sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
+                //       (const struct sockaddr *) &netstr.servaddr, sizeof(netstr.servaddr));
+                //state = S_EXIT;
+                //statusexit("listener", &payload);
                 break;
             case 'S':
                 {
@@ -200,22 +204,19 @@ void receiver () {
                     timeout_flag = true;
                     timeout_condition.notify_one();
                 }
-                outgoing_index = outgoing.incrementwindowendindex();
+                available_window = outgoing.incrementwindowendindex();
                 waiting.pop();
                 state = S_INITIAL;
-                statusupdate(state, &payload, outgoing_index);
+                statusupdate(state, &payload, available_window);
                 break;
         }
     }
 
     fprintf(stderr, "-------RECEIVER---EXIT-------\n");
-    exit(0);
 }
 
 void printer() {
     fprintf(stderr, "--------PRINTER-START--------\n");
-
-    char *msg_receive;
     int packet_number = 0;
     Payload payload;
 
@@ -241,6 +242,5 @@ void printer() {
         }
     }
 
-    free(msg_receive);
     fprintf(stderr, "--------PRINTER--EXIT--------\n");
 }
