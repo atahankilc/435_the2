@@ -28,7 +28,7 @@ int main (int argc,char **argv) {
     memset(&netstr.servaddr, 0, sizeof(netstr.servaddr));
     netstr.servaddr.sin_family = AF_INET;
     netstr.servaddr.sin_port = htons(atoi(argv[2]));
-    netstr.servaddr.sin_addr.s_addr = INADDR_ANY;
+    inet_pton(AF_INET, argv[1], &(netstr.servaddr.sin_addr));
 
     std::thread thread_timeout (timeout);
     std::thread thread_sender (sender);
