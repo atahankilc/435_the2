@@ -89,7 +89,7 @@ void talker() {
     fprintf(stderr, "--------TALKER--START--------\n");
     char *msg_send;
     int msg_len;
-    int packet_number = 0;
+    int packet_number = 1;
 
     msg_send = (char*) malloc(BUFF_SIZE * sizeof(char));
 
@@ -148,7 +148,7 @@ void receiver () {
 
     int cliaddr_len;
     int outgoing_index = -2;
-    int incoming_index = 0;
+    int incoming_index = 1;
 
     Payload payload, payload_ack;
     payload_ack.type = 'A';

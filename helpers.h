@@ -12,6 +12,7 @@
 #include <thread>
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 
 #define BUFF_SIZE 1025
 #define PACKET_DATA_SIZE 10
@@ -31,13 +32,17 @@ typedef struct Netstr {
 
 enum State {S_EXIT = 0, S_WORKING = 2, S_INITIAL = 3, S_NOT_CONNECTED = 4};
 
-auto cmp_payload = [](Payload left, Payload right) {
-    return (left.packet_number) > (right.packet_number);
-};
-
-class TODO {
+typedef struct TODO {
 private:
-    std::priority_queue<Payload, std::vector<Payload>, decltype(cmp_payload)> queue;
+    struct cmp_payload {
+        bool operator()(Payload const& p1, Payload const& p2)
+        {
+            // return "true" if "p1" is ordered
+            // before "p2", for example:
+            return p1.packet_number > p2.packet_number;
+        }
+    };
+    std::priority_queue<Payload, std::vector<Payload>, cmp_payload> queue;
     int window_end_index = WINDOW_WIDTH;
     std::mutex mutex;
 public:
@@ -75,7 +80,7 @@ public:
         window_end_index = WINDOW_WIDTH;
         return window_end_index;
     }
-};
+} TODO;
 
 void packetmsg(int state, int *packet_number, const char* msg, TODO *todo);
 int statecheck(int state, char *msg);
