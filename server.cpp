@@ -32,7 +32,8 @@ void talker ();
 void sender ();
 void receiver ();
 void printer ();
-void timeout ();
+
+[[noreturn]] void timeout ();
 
 int main(int argc,char **argv) {
 
@@ -80,11 +81,11 @@ int main(int argc,char **argv) {
 // if timeout thread is wakeup by another thread -> no timeout happened, sleep again
 // otherwise -> expected "A-ck" packet for corresponding "M-essage" packet did not receive, push every packet in waiting queue to the outgoing queue
 // actual task of timeout thread begins when the first packet is sent, until then do nothing when wakeup
-void timeout () {
+[[noreturn]] void timeout () {
     fprintf(stderr, "--------TIMEOUT--START--------\n");
     std::unique_lock<std::mutex> lock(timeout_mutex);
 
-    while(state != S_EXIT) {
+    while(true) {
         timeout_condition.wait_for(lock,
                                    std::chrono::milliseconds (SLEEP_MSEC),
                                    []() { return timeout_flag; });
@@ -103,8 +104,6 @@ void timeout () {
             outgoing.resetwindowindex();
         }
     }
-
-    fprintf(stderr, "--------TIMEOUT---EXIT--------\n");
 }
 
 // gets user input and divide into 16 byte packet so that sender thread can send them
@@ -124,19 +123,15 @@ void talker() {
         if (state != S_EXIT) {
             packetmsg(&packet_number, msg_send, &outgoing);
         } else {
-            int count = 0;
             Payload payload;
-
             payload.type = 'E';
             payload.packet_number = 0;
-            while(count != 5) {
-                if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                           (const struct sockaddr *) &netstr.cliaddr, sizeof(netstr.cliaddr)) == -1) {
-                    fprintf(stderr, "sender: failed to send\n");
-                    exit(EXIT_FAILURE);
-                }
-                count++;
-            }
+
+            while(!outgoing.empty())
+                outgoing.pop();
+            while(!waiting.empty())
+                waiting.pop();
+            outgoing.push(payload);
         }
     }
 
@@ -157,7 +152,7 @@ void sender() {
     fprintf(stderr, "--------SENDER--START--------\n");
     Payload payload;
 
-    while(state != S_EXIT) {
+    while(true) {
         if(outgoing.getwindowendindex() != 0 && !outgoing.empty()) {
             payload = outgoing.pop();
             if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
@@ -177,8 +172,6 @@ void sender() {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     }
-
-    fprintf(stderr, "--------SENDER--EXIT---------\n");
 }
 
 // receives packets from client
@@ -196,6 +189,7 @@ void receiver () {
     int cliaddr_len;
     int available_window = outgoing.getwindowendindex();
     int incoming_index = 1;
+    int count = 0;
 
     Payload payload, payload_ack;
     payload_ack.type = 'A';
@@ -231,6 +225,14 @@ void receiver () {
                 break;
             case 'E':
                 state = S_EXIT;
+                while(count != 10) {
+                    if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
+                               (const struct sockaddr *) &netstr.cliaddr, cliaddr_len) == -1) {
+                        fprintf(stderr, "sender: failed to send\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    count++;
+                }
                 break;
             case 'S':
                 sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
