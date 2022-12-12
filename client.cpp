@@ -150,6 +150,7 @@ void talker() {
     std::unique_lock<std::mutex> lock(exit_mutex);
     free(msg_send);
     free(msg_receive);
+    close(netstr.sockfd);
     exit(0);
 }
 
@@ -220,9 +221,6 @@ void receiver () {
                 statusupdate(state, &payload, available_window);
                 break;
             case 'E':
-                //sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                //       (const struct sockaddr *) &netstr.servaddr, sizeof(netstr.servaddr));
-                //statusexit("listener", &payload);
                 state = S_EXIT;
                 break;
             case 'S':
@@ -244,6 +242,7 @@ void receiver () {
     std::unique_lock<std::mutex> lock(exit_mutex);
     free(msg_send);
     free(msg_receive);
+    close(netstr.sockfd);
     exit(0);
 }
 

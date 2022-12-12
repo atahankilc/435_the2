@@ -125,15 +125,13 @@ void talker() {
             packetmsg(&packet_number, msg_send, &outgoing);
         } else {
             int count = 0;
-            int cliaddr_len;
             Payload payload;
 
-            cliaddr_len = sizeof(netstr.cliaddr);
             payload.type = 'E';
             payload.packet_number = 0;
             while(count != 5) {
                 if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                           (const struct sockaddr *) &netstr.cliaddr, cliaddr_len) == -1) {
+                           (const struct sockaddr *) &netstr.cliaddr, sizeof(netstr.cliaddr)) == -1) {
                     fprintf(stderr, "sender: failed to send\n");
                     exit(EXIT_FAILURE);
                 }
@@ -146,6 +144,7 @@ void talker() {
     std::unique_lock<std::mutex> lock(exit_mutex);
     free(msg_send);
     free(msg_receive);
+    close(netstr.sockfd);
     exit(0);
 }
 
@@ -157,15 +156,12 @@ void talker() {
 void sender() {
     fprintf(stderr, "--------SENDER--START--------\n");
     Payload payload;
-    int cliaddr_len;
-
-    cliaddr_len = sizeof(netstr.cliaddr);
 
     while(state != S_EXIT) {
         if(outgoing.getwindowendindex() != 0 && !outgoing.empty()) {
             payload = outgoing.pop();
             if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                      (const struct sockaddr *) &netstr.cliaddr, cliaddr_len) == -1) {
+                      (const struct sockaddr *) &netstr.cliaddr, sizeof(netstr.cliaddr)) == -1) {
                 fprintf(stderr, "sender: failed to send\n");
                 exit(EXIT_FAILURE);
             }
@@ -234,9 +230,6 @@ void receiver () {
                 statusupdate(state, &payload, available_window);
                 break;
             case 'E':
-                //sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
-                //       (const struct sockaddr *) &netstr.cliaddr, cliaddr_len);
-                //statusexit("listener", &payload);
                 state = S_EXIT;
                 break;
             case 'S':
@@ -250,6 +243,7 @@ void receiver () {
     std::unique_lock<std::mutex> lock(exit_mutex);
     free(msg_send);
     free(msg_receive);
+    close(netstr.sockfd);
     exit(0);
 }
 

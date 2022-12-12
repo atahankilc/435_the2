@@ -19,7 +19,7 @@
 #define BUFF_SIZE 1025
 #define PACKET_DATA_SIZE 10
 #define WINDOW_WIDTH 20
-#define SLEEP_MSEC 300
+#define SLEEP_MSEC 250
 
 // 1 byte to indicate if packet contains "\n"
 // 1 byte for type of the packet, can be "M-essage", "A-ck", "S-tart", "E-nd"
