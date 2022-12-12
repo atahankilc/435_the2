@@ -136,11 +136,6 @@ void talker() {
     }
 
     fprintf(stderr, "--------TALKER--EXIT---------\n");
-    std::unique_lock<std::mutex> lock(exit_mutex);
-    free(msg_send);
-    free(msg_receive);
-    close(netstr.sockfd);
-    exit(0);
 }
 
 // sends packets in outgoing queue
