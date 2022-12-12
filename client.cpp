@@ -1,5 +1,15 @@
 #include "helpers.h"
 
+// client implementation is almost the same with server, only major different that can be seen in the code is establishing connection -> initiate() function
+// there is no binding in client.cpp
+// client uses netstr.servaddr sockaddr_in struct to send packets and to receive packets
+// differences:
+// line 46
+// line 53
+// line 75
+// line 83
+// other functions are explained in server.cpp
+
 int state = S_NOT_CONNECTED;
 Netstr netstr;
 TODO incoming;
@@ -10,6 +20,8 @@ std::mutex timeout_mutex;
 std::condition_variable timeout_condition;
 bool timeout_flag = false;
 bool timeout_first_start = true;
+
+std::mutex exit_mutex;
 
 char *msg_send;
 char *msg_receive;
@@ -29,15 +41,16 @@ int main (int argc,char **argv) {
     }
 
     memset(&netstr.servaddr, 0, sizeof(netstr.servaddr));
-    netstr.servaddr.sin_family = AF_INET;
+    netstr.servaddr.sin_family = AF_INET; // IPv4
     netstr.servaddr.sin_port = htons(atoi(argv[2]));
-    netstr.servaddr.sin_addr.s_addr = inet_addr(argv[1]);
+    netstr.servaddr.sin_addr.s_addr = inet_addr(argv[1]); // needs server address to send packets
 
     std::thread thread_timeout (timeout);
     std::thread thread_sender (sender);
     std::thread thread_receiver (receiver);
     std::thread thread_connector (initiate);
 
+    // this actually does not matter anymore since only task of the connector thread is to push "S-tart" packet to outgoing queue
     if(thread_connector.joinable())
         thread_connector.join();
 
@@ -59,11 +72,17 @@ int main (int argc,char **argv) {
     return 0;
 }
 
+// to establish connection client begin with sending "S-tart" packets
+// until getting any "A-ck" packet, client continuously sends this packet
+// it is receiver and timeout threads responsibility to ensure connection
 void initiate () {
     fprintf(stderr, "------CONNECTOR--START-------\n");
     Payload payload;
 
     payload.type = 'S';
+    // to have the highest priority at outgoing priority queue
+    // but actually it does not matter since in the beginning server want packet number of 1
+    // and in any case of "A-ck" response "S-tart" packet dequeues
     payload.packet_number = 0;
     outgoing.push(payload);
 
@@ -111,17 +130,26 @@ void talker() {
         if (state != S_EXIT) {
             packetmsg(&packet_number, msg_send, &outgoing);
         } else {
-            //Payload payload;
-            //payload.type = 'E';
-            //payload.packet_number = 0;
-            //outgoing.push(payload);
-            //statusexit("talker", &payload);
+            int count = 0;
+            Payload payload;
+
+            payload.type = 'E';
+            payload.packet_number = 0;
+            while(count != 5) {
+                if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
+                           (const struct sockaddr *) &netstr.servaddr, sizeof(netstr.servaddr)) == -1) {
+                    fprintf(stderr, "sender: failed to send\n");
+                    exit(EXIT_FAILURE);
+                }
+                count++;
+            }
         }
     }
 
+    fprintf(stderr, "--------TALKER--EXIT---------\n");
+    std::unique_lock<std::mutex> lock(exit_mutex);
     free(msg_send);
     free(msg_receive);
-    fprintf(stderr, "--------TALKER--EXIT---------\n");
     exit(0);
 }
 
@@ -129,7 +157,7 @@ void sender() {
     fprintf(stderr, "--------SENDER--START--------\n");
     Payload payload;
 
-    while(payload.type != 'E') {
+    while(state != S_EXIT) {
         if(outgoing.getwindowendindex() != 0 && !outgoing.empty()) {
             payload = outgoing.pop();
             if (sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
@@ -194,8 +222,8 @@ void receiver () {
             case 'E':
                 //sendto(netstr.sockfd, (Payload *) &payload, sizeof(Payload), 0,
                 //       (const struct sockaddr *) &netstr.servaddr, sizeof(netstr.servaddr));
-                //state = S_EXIT;
                 //statusexit("listener", &payload);
+                state = S_EXIT;
                 break;
             case 'S':
                 {
@@ -213,6 +241,10 @@ void receiver () {
     }
 
     fprintf(stderr, "-------RECEIVER---EXIT-------\n");
+    std::unique_lock<std::mutex> lock(exit_mutex);
+    free(msg_send);
+    free(msg_receive);
+    exit(0);
 }
 
 void printer() {

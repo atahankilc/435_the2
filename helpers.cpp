@@ -45,13 +45,6 @@ void statusupdate(int state, Payload *payload, int index) {
     fprintf(stderr, "-----------------------------\n");
 }
 
-void statusstart(const char* from, Payload *payload) {
-    fprintf(stderr, "--------------S--------------\n");
-    fprintf(stderr, "from: %s\n", from);
-    fprintf(stderr, "Payload Type: %c\n", payload->type);
-    fprintf(stderr, "-----------------------------\n");
-}
-
 void statusexit(const char* from, Payload *payload) {
     fprintf(stderr, "--------------E--------------\n");
     fprintf(stderr, "from: %s\n", from);
